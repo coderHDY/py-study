@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "gemini-api-dev": {
+      "source": "google-gemini/gemini-skills",
+      "sourceType": "github",
+      "computedHash": "a1bc395530ba9116a4509e27321eaf7cc81c5f93aa80a4778ad6f915180b4f2c"
+    },
+    "modern-python": {
+      "source": "trailofbits/skills",
+      "sourceType": "github",
+      "computedHash": "fb23cdde660840865454af8ea05bd8d8ddefa0082d4e52f2cf34385997eafd84"
+    },
+    "openai-knowledge": {
+      "source": "openai/openai-agents-python",
+      "sourceType": "github",
+      "computedHash": "ad769f9231a3e211c325af7464e38aa11b80d183f88710d02e5547769ea4934a"
+    }
+  }
+}
