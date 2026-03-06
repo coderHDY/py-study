@@ -1,0 +1,9 @@
+{
+  "code-runner.executorMap": {
+    "python": "/usr/local/bin/python3 -u"
+  },
+  "code-runner.executorMapByFileExtension": {
+    ".py": "/usr/local/bin/python3 -u"
+  },
+  "python.defaultInterpreterPath": "/usr/local/bin/python3"
+}
