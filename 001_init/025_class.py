@@ -28,48 +28,45 @@ class StudentSystem:
                 case "6":
                     Log.success("感谢使用，再见！")
                     break
-                case "7":
+                case _:
                     Log.error("指令错误！请重新输入！")
 
     def check_stu_exit(self, name):
-        for s in self.stu_list:
-            if s.name == name:
-                return True
-        return False
+        return self.get_stu(name) is not None
 
     def get_stu(self, name):
-        for s in self.stu_list:
-            if s.name == name:
-                return s
-        return None
+        return next((s for s in self.stu_list if s.name == name), None)
+
+    def _input_scores(self):
+        return (
+            input("请输入学生的语文成绩："),
+            input("请输入学生的数学成绩："),
+            input("请输入学生的英语成绩："),
+        )
 
     def add_stu(self):
         name = input("请输入学生的姓名：")
         if self.check_stu_exit(name):
             Log.error("学生已存在！")
             return
-        chinese_score = input("请输入学生的语文成绩：")
-        math_score = input("请输入学生的数学成绩：")
-        english_score = input("请输入学生的英语成绩：")
+        chinese_score, math_score, english_score = self._input_scores()
         Log.success("添加成功！")
         self.stu_list.append(Student(name, chinese_score, math_score, english_score))
 
     def modify_stu(self):
         name = input("请输入学生的姓名：")
         stu = self.get_stu(name)
-        if stu == None:
+        if stu is None:
             Log.error("学生不存在！")
             return
-        chinese_score = input("请输入学生的语文成绩：")
-        math_score = input("请输入学生的数学成绩：")
-        english_score = input("请输入学生的英语成绩：")
+        chinese_score, math_score, english_score = self._input_scores()
         stu.modify(chinese_score, math_score, english_score)
         Log.success("修改成功！")
 
     def del_stu(self):
         name = input("请输入学生的姓名：")
         stu = self.get_stu(name)
-        if stu == None:
+        if stu is None:
             Log.error("学生不存在！")
             return
         self.stu_list.remove(stu)
@@ -78,7 +75,7 @@ class StudentSystem:
     def search_stu(self):
         name = input("请输入学生的姓名：")
         stu = self.get_stu(name)
-        if stu == None:
+        if stu is None:
             Log.error("学生不存在！")
             return
         print(stu)
