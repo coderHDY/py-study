@@ -52,6 +52,8 @@ log_warn("警告！！！！！！！")
 
 help(log_success)
 
+
+# 函数文档
 def divide(a: float, b: float) -> float:
     """
     除法运算。
