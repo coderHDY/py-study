@@ -6,14 +6,15 @@ import json
 import uuid
 from pathlib import Path
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
 from openai import OpenAI
 
 app = Flask(__name__, static_folder="static")
 CORS(app)
 
-DATA_DIR = Path(__file__).parent / "data"
+# Vercel 文件系统只有 /tmp 可写；本地使用 data/ 目录
+DATA_DIR = Path("/tmp") if os.environ.get("VERCEL") else Path(__file__).parent / "data"
 SESSIONS_FILE = DATA_DIR / "sessions.json"
 
 
@@ -107,7 +108,7 @@ def update_config():
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
-    """发送消息并调用 DeepSeek API"""
+    """发送消息并流式返回 DeepSeek 响应"""
     body = request.get_json() or {}
     sid = body.get("session_id")
     content = body.get("content", "").strip()
@@ -122,44 +123,53 @@ def chat():
     config = data.get("config", {})
     name = config.get("name", "南瓜小助手")
     personality = config.get("personality", "You are a helpful assistant.")
-
-    # 构建 system 消息
     system_content = f"你的名字是 {name}。{personality}"
 
     session = data["sessions"][sid]
-    messages = session.get("messages", [])
+    history = session.get("messages", [])
 
-    # 构建 API 消息：[system] + 历史 + 新 user
     api_messages = [{"role": "system", "content": system_content}]
-    for m in messages:
+    for m in history:
         api_messages.append({"role": m["role"], "content": m["content"]})
     api_messages.append({"role": "user", "content": content})
 
-    try:
+    def generate():
         client = get_client()
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=api_messages,
-            stream=False,
-        )
-        assistant_content = response.choices[0].message.content or ""
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        full_response = []
+        try:
+            stream = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=api_messages,
+                stream=True,
+            )
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    full_response.append(delta)
+                    yield f"data: {json.dumps({'delta': delta}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            return
 
-    # 更新会话
-    session["messages"].append({"role": "user", "content": content})
-    session["messages"].append({"role": "assistant", "content": assistant_content})
+        assistant_content = "".join(full_response)
+        fresh = load_data()
+        s = fresh["sessions"].get(sid)
+        if s is not None:
+            s["messages"].append({"role": "user", "content": content})
+            s["messages"].append({"role": "assistant", "content": assistant_content})
+            if len(s["messages"]) == 2:
+                s["title"] = content[:30] + ("..." if len(content) > 30 else "")
+            save_data(fresh)
+            new_title = s.get("title", "新会话")
+        else:
+            new_title = "新会话"
+        yield f"data: {json.dumps({'done': True, 'title': new_title}, ensure_ascii=False)}\n\n"
 
-    # 首条消息作为标题
-    if len(session["messages"]) == 2:
-        session["title"] = content[:30] + ("..." if len(content) > 30 else "")
-
-    save_data(data)
-
-    return jsonify({
-        "user": content,
-        "assistant": assistant_content,
-    })
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # 静态文件

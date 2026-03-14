@@ -561,6 +561,20 @@ body {
   transition: opacity 0.2s;
 }
 
+/* 打字光标 */
+.typing-cursor {
+  display: inline-block;
+  color: var(--pumpkin-light);
+  animation: blink 0.7s step-end infinite;
+  font-weight: 300;
+  line-height: 1;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 .btn-save:hover {
   opacity: 0.9;
 }

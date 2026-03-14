@@ -188,6 +188,15 @@ function showWelcome() {
 const messageContents = new Map();
 let msgIdCounter = 0;
 
+// 智能自动滚动：仅在用户靠近底部时才跟随
+const SCROLL_THRESHOLD = 80; // px
+function isNearBottom() {
+  return chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight < SCROLL_THRESHOLD;
+}
+function scrollToBottomIfNeeded() {
+  if (isNearBottom()) chatArea.scrollTop = chatArea.scrollHeight;
+}
+
 // 渲染单条消息
 function renderMessage(role, content) {
   const avatar = role === "user" ? "你" : "🎃";
@@ -222,6 +231,7 @@ async function sendMessage() {
 
   btnSend.disabled = true;
   input.value = "";
+  input.style.height = "auto";
 
   welcome.classList.add("hidden");
   messages.classList.add("visible");
@@ -233,11 +243,15 @@ async function sendMessage() {
     <div class="avatar">🎃</div>
     <div class="msg-body">
       <div class="role">南瓜</div>
-      <div class="bubble markdown-body">思考中...</div>
+      <div class="bubble markdown-body"><span class="typing-cursor">▋</span></div>
     </div>
   `;
   messages.appendChild(assistantEl);
+  // 发送新消息时强制滚到底部
   chatArea.scrollTop = chatArea.scrollHeight;
+
+  const bubble = assistantEl.querySelector(".bubble");
+  let fullText = "";
 
   try {
     const res = await fetch(`${API}/chat`, {
@@ -246,28 +260,60 @@ async function sendMessage() {
       body: JSON.stringify({ session_id: currentSessionId, content }),
     });
 
-    const data = await res.json();
-
     if (!res.ok) {
-      assistantEl.querySelector(".bubble").textContent = "错误: " + (data.error || res.statusText);
-    } else {
-      const bubble = assistantEl.querySelector(".bubble");
-      bubble.innerHTML = marked.parse(data.assistant);
-      const id = ++msgIdCounter;
-      messageContents.set(id, data.assistant);
-      const copyBtn = document.createElement("button");
-      copyBtn.className = "btn-copy";
-      copyBtn.textContent = "复制";
-      copyBtn.setAttribute("data-msg-id", String(id));
-      assistantEl.querySelector(".msg-body").appendChild(copyBtn);
+      const err = await res.json().catch(() => ({}));
+      bubble.textContent = "错误: " + (err.error || res.statusText);
+      btnSend.disabled = false;
+      return;
     }
 
-    loadSessions();
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const jsonStr = line.slice(6).trim();
+        if (!jsonStr) continue;
+        try {
+          const msg = JSON.parse(jsonStr);
+          if (msg.error) {
+            bubble.textContent = "错误: " + msg.error;
+          } else if (msg.delta) {
+            fullText += msg.delta;
+            bubble.innerHTML = marked.parse(fullText) + '<span class="typing-cursor">▋</span>';
+            scrollToBottomIfNeeded();
+          } else if (msg.done) {
+            bubble.innerHTML = marked.parse(fullText);
+            const id = ++msgIdCounter;
+            messageContents.set(id, fullText);
+            const copyBtn = document.createElement("button");
+            copyBtn.className = "btn-copy";
+            copyBtn.textContent = "复制";
+            copyBtn.setAttribute("data-msg-id", String(id));
+            assistantEl.querySelector(".msg-body").appendChild(copyBtn);
+            if (msg.title) {
+              const s = sessions.find(x => x.id === currentSessionId);
+              if (s) s.title = msg.title;
+            }
+            loadSessions();
+          }
+        } catch (_) {}
+      }
+    }
   } catch (e) {
-    assistantEl.querySelector(".bubble").textContent = "网络错误: " + e.message;
+    bubble.textContent = "网络错误: " + e.message;
   }
 
-  chatArea.scrollTop = chatArea.scrollHeight;
+  scrollToBottomIfNeeded();
   btnSend.disabled = false;
 }
 
