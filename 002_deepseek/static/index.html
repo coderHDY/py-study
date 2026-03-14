@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 南瓜智能伴侣</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="logo">🎃</span>
+        <h1>南瓜智能伴侣</h1>
+      </div>
+
+      <button class="btn-new" id="btnNew">
+        <span class="icon">+</span> 新建会话
+      </button>
+
+      <div class="session-list" id="sessionList">
+        <!-- 动态填充 -->
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="btn-config" id="btnConfig">
+          <span class="icon">⚙</span> 配置
+        </button>
+      </div>
+    </aside>
+
+    <!-- 侧边栏收缩按钮 -->
+    <button class="sidebar-toggle" id="sidebarToggle" title="收起/展开侧边栏" aria-label="收起/展开侧边栏">
+      <span class="toggle-icon">◀</span>
+    </button>
+
+    <!-- 主内容区 -->
+    <main class="main">
+      <div class="chat-area" id="chatArea">
+        <div class="welcome" id="welcome">
+          <div class="welcome-icon">🎃</div>
+          <p>你好，我是南瓜小助手</p>
+          <p class="sub">在下方输入框开始对话吧</p>
+        </div>
+        <div class="messages" id="messages"></div>
+      </div>
+
+      <div class="input-area">
+        <textarea id="input" placeholder="输入消息，按 Enter 发送..." rows="1"></textarea>
+        <button class="btn-send" id="btnSend" title="发送">
+          <span>发送</span>
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <!-- 配置弹窗 -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>配置</h2>
+        <button class="btn-close" id="btnClose">×</button>
+      </div>
+      <div class="modal-body">
+        <label>
+          <span>名字</span>
+          <input type="text" id="configName" placeholder="例如：南瓜小助手">
+        </label>
+        <label>
+          <span>性格 / 系统提示</span>
+          <textarea id="configPersonality" rows="4" placeholder="例如：You are a helpful assistant. 你是一个友好的AI南瓜智能伴侣。"></textarea>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-save" id="btnSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
