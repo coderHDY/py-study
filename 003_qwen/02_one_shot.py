@@ -47,5 +47,3 @@ Optimus 机器人：Grok 将作为 Optimus 人形机器人 的“大脑”，为
 res = text_analyse(user_prompt)
 print(res)
 print(type(res))
-
-
