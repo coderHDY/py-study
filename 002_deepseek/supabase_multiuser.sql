@@ -43,7 +43,7 @@ create table if not exists rag_chunks (
   user_id text not null default '',
   content text not null,
   metadata jsonb default '{}'::jsonb,
-  embedding vector(384)
+  embedding vector(512)
 );
 
 -- 已有表时仅补列（与上面 create 二选一场景）
@@ -53,7 +53,7 @@ create index if not exists rag_chunks_user_id_idx on rag_chunks (user_id);
 
 -- 按用户相似度检索（务必与后端 RPC 参数一致）
 create or replace function match_rag_chunks(
-  query_embedding vector(384),
+  query_embedding vector(512),
   match_count int default 5,
   filter_user_id text default ''
 )
@@ -88,3 +88,8 @@ begin
   truncate table rag_chunks restart identity;
 end;
 $$;
+
+-- ========== 从 vector(384) 迁到 512（会丢失旧向量，需重新上传建库）==========
+-- truncate rag_chunks restart identity;
+-- alter table rag_chunks alter column embedding type vector(512);
+-- 再执行本文件中上面的 create or replace function match_rag_chunks(...) 以更新 RPC 参数维数。

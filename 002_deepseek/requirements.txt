@@ -1,6 +1,6 @@
 # 服务端 / Vercel：勿包含 torch 系依赖（sentence-transformers 会膨胀到数 GB，超过 Lambda 500MB）
 # 云端 RAG：EMBEDDING_BACKEND=openai（兼容接口）或 dashscope_multimodal（通义多模态嵌入 SDK）
-# 向量维度须与数据库 vector 列一致；多模态模型默认维度见百炼文档
+# 向量维度须与数据库 vector 列一致（默认 512，见 supabase_multiuser.sql）
 openai>=1.0.0
 dashscope>=1.14.0
 python-dotenv>=1.0.0

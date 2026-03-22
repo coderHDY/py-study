@@ -1,26 +1,19 @@
 """
 嵌入方式：
-- local：sentence-transformers
+- local：sentence-transformers（默认 all-MiniLM-L6-v2 为 384 维，会零填充到 EMBEDDING_DIM，默认 512，与 Supabase 一致）
 - openai：OpenAI 兼容 HTTP（含百炼 compatible-mode / OpenAI 官方）
-- dashscope_multimodal：百炼原生 SDK（MultiModalEmbedding），用于 tongyi-embedding-vision-* 等
+- dashscope_multimodal：百炼原生 SDK（MultiModalEmbedding）
 
-百炼 compatible-mode（text-embedding-v3/v4）的 dimension 仅允许：
-  64, 128, 256, 512, 768, 1024, 1536, 2048, 3072（不可用 384）。
-  未配置时 Vercel 默认会按 384 意图对齐为 512；库表须为 vector(512) 或你显式设置 EMBEDDING_DIM 为上述之一。
+默认逻辑维数 EMBEDDING_DIM=512（与 supabase_*.sql 中 vector(512) 一致）；未设置环境变量时本地与 Vercel 均按 512。
 
-百炼兼容模式示例：
+百炼 text-embedding-v3/v4 的 dimensions 仅允许离散取值；与意图维不一致时会先按合法维请求，再截断/填充到 EMBEDDING_DIM。
+
+百炼兼容示例：
   DASHSCOPE_API_KEY=...
   EMBEDDING_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
   EMBEDDING_MODEL=text-embedding-v4
-  EMBEDDING_DIM=512
 
-通义多模态嵌入（文档示例）：
-  EMBEDDING_BACKEND=dashscope_multimodal
-  DASHSCOPE_API_KEY=...
-  EMBEDDING_MODEL=tongyi-embedding-vision-flash-2026-03-06
-  EMBEDDING_DIM=<与模型/库表一致，如 vision-flash 常见 768；须与 Supabase vector(n) 一致>
-
-国际域：compatible-mode 用 dashscope-intl 域名；SDK 可设 DASHSCOPE_REGION=intl（视 SDK 版本而定）。
+国际域：compatible-mode 使用 dashscope-intl 域名；可设 DASHSCOPE_REGION=intl。
 """
 import os
 from functools import lru_cache
@@ -81,26 +74,58 @@ def _default_embedding_model_for_api() -> str:
     return "text-embedding-3-small"
 
 
+def _openai_embedding_desired_dim() -> int:
+    """写入库表/逻辑维度的意图值（未做百炼合法维 snap）。"""
+    raw = os.environ.get("EMBEDDING_DIM")
+    if raw is not None and str(raw).strip() != "":
+        return int(str(raw).strip())
+    return 512
+
+
+def _openai_compatible_api_dimensions_param() -> int:
+    """发给 embeddings.create 的 dimensions（百炼须为合法枚举之一）。"""
+    desired = _openai_embedding_desired_dim()
+    if _using_dashscope_compatible_embedding_api():
+        return _snap_dashscope_compatible_dimension(desired)
+    return desired
+
+
+def _resize_embedding_rows(arr: np.ndarray, target_cols: int) -> np.ndarray:
+    """将每行变为 target_cols：不足则右侧零填充，超出则截断前段，再整行 L2 归一。"""
+    n, d = arr.shape
+    base = np.asarray(arr, dtype=np.float32)
+    if d < target_cols:
+        out = np.hstack([base, np.zeros((n, target_cols - d), dtype=np.float32)])
+    elif d > target_cols:
+        out = np.asarray(base[:, :target_cols], dtype=np.float32)
+    else:
+        out = base
+    norms = np.linalg.norm(out, axis=1, keepdims=True)
+    return out / np.maximum(norms, 1e-12)
+
+
 def embedding_dim() -> int:
     backend = _backend_name()
     if backend == "dashscope_mm":
         raw = os.environ.get("EMBEDDING_DIM")
         if raw is not None and str(raw).strip() != "":
             return int(str(raw).strip())
-        # vision-flash 等默认维度以控制台文档为准；未配置时取常见默认值
-        return 768
+        return 512
     if backend == "openai":
-        raw = os.environ.get("EMBEDDING_DIM")
-        if raw is not None and str(raw).strip() != "":
-            d = int(str(raw).strip())
-        elif os.environ.get("VERCEL"):
-            d = 384
-        else:
-            d = 1536
+        desired = _openai_embedding_desired_dim()
         if _using_dashscope_compatible_embedding_api():
-            return _snap_dashscope_compatible_dimension(d)
-        return d
-    return 384
+            out = os.environ.get("EMBEDDING_OUTPUT_DIM", "").strip()
+            if out:
+                return int(out)
+            snapped = _snap_dashscope_compatible_dimension(desired)
+            if snapped > desired:
+                return desired
+            return snapped
+        return desired
+    raw = os.environ.get("EMBEDDING_DIM")
+    if raw is not None and str(raw).strip() != "":
+        return int(str(raw).strip())
+    return 512
 
 
 def _backend_name() -> str:
@@ -213,7 +238,8 @@ def _embed_texts_dashscope_multimodal(texts: list[str]) -> np.ndarray:
             )
         for row in parsed:
             all_vecs.append(np.asarray(row, dtype=np.float32))
-    return np.stack(all_vecs, axis=0)
+    arr = np.stack(all_vecs, axis=0)
+    return _resize_embedding_rows(arr, embedding_dim())
 
 
 def _embeddings_api_supports_dimensions(model: str) -> bool:
@@ -238,16 +264,18 @@ def embed_texts(texts: list[str]) -> np.ndarray:
         model = os.environ.get("EMBEDDING_MODEL", "").strip() or _default_embedding_model_for_api()
         vecs = []
         batch = 32
-        dim = embedding_dim()
+        api_dim = _openai_compatible_api_dimensions_param()
+        logical_dim = embedding_dim()
         for i in range(0, len(texts), batch):
             part = texts[i : i + batch]
             kwargs: dict = {"model": model, "input": part}
-            if _embeddings_api_supports_dimensions(model) and dim > 0:
-                kwargs["dimensions"] = dim
+            if _embeddings_api_supports_dimensions(model) and api_dim > 0:
+                kwargs["dimensions"] = api_dim
             r = client.embeddings.create(**kwargs)
             order = {item.index: np.array(item.embedding, dtype=np.float32) for item in r.data}
             vecs.extend(order[j] for j in range(len(part)))
-        return np.stack(vecs, axis=0)
+        arr = np.stack(vecs, axis=0)
+        return _resize_embedding_rows(arr, logical_dim)
 
     model = _local_model()
     arr = model.encode(
@@ -256,4 +284,4 @@ def embed_texts(texts: list[str]) -> np.ndarray:
         show_progress_bar=False,
         normalize_embeddings=True,
     )
-    return np.asarray(arr, dtype=np.float32)
+    return _resize_embedding_rows(np.asarray(arr, dtype=np.float32), embedding_dim())

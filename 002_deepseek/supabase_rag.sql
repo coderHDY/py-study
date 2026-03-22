@@ -1,11 +1,11 @@
--- 在 Supabase SQL Editor 中执行（维度须与嵌入模型一致：all-MiniLM-L6-v2 为 384）
+-- 在 Supabase SQL Editor 中执行（维度须与后端 EMBEDDING_DIM / 向量列一致，当前默认 512）
 create extension if not exists vector;
 
 create table if not exists rag_chunks (
   id bigserial primary key,
   content text not null,
   metadata jsonb default '{}'::jsonb,
-  embedding vector(384)
+  embedding vector(512)
 );
 
 -- 后端须使用 service_role 密钥（SUPABASE_SERVICE_ROLE_KEY），才会绕过 RLS。
@@ -18,7 +18,7 @@ create table if not exists rag_chunks (
 --   on rag_chunks using ivfflat (embedding vector_cosine_ops) with (lists = 100);
 
 create or replace function match_rag_chunks(
-  query_embedding vector(384),
+  query_embedding vector(512),
   match_count int default 5
 )
 returns table (
