@@ -407,6 +407,30 @@ body {
   align-items: flex-end;
 }
 
+.input-rag-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  user-select: none;
+  padding-bottom: 4px;
+}
+
+.input-rag-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--pumpkin);
+  cursor: pointer;
+}
+
+.input-rag-toggle span {
+  white-space: nowrap;
+}
+
 .input-area textarea {
   flex: 1;
   padding: 14px 18px;
@@ -478,6 +502,68 @@ body {
   width: 90%;
   max-width: 440px;
   box-shadow: var(--shadow);
+}
+
+.modal-wide {
+  max-width: 520px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-wide .modal-body {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.rag-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.rag-section-title {
+  font-size: 1rem;
+  color: var(--pumpkin-light);
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.rag-runtime {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.rag-status-line {
+  font-size: 0.8rem;
+  color: var(--amber);
+  margin-bottom: 12px;
+}
+
+.btn-ingest {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--pumpkin-light);
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.btn-ingest:hover {
+  border-color: var(--pumpkin);
+  background: var(--user-bubble);
+}
+
+.btn-ingest:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .modal-header {
@@ -586,6 +672,23 @@ body {
 }
 
 /* ========== 复制按钮 ========== */
+.rag-footnote {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: rgba(230, 126, 34, 0.08);
+  border-radius: 8px;
+  border: 1px solid rgba(230, 126, 34, 0.15);
+  line-height: 1.4;
+}
+
+.rag-footnote-error {
+  color: #e59866;
+  border-color: rgba(229, 152, 102, 0.35);
+  background: rgba(229, 152, 102, 0.1);
+}
+
 .btn-copy {
   align-self: flex-start;
   margin-top: 6px;

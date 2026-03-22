@@ -3,6 +3,34 @@
  */
 const API = "/api";
 
+/** 每浏览器 / 设备一个 ID，用于隔离 RAG 与会话（随请求头 X-Client-User-Id 发送） */
+const CLIENT_USER_ID_KEY = "pumpkin-client-user-id";
+
+function getOrCreateClientUserId() {
+  try {
+    let id = localStorage.getItem(CLIENT_USER_ID_KEY);
+    if (!id || id.length < 8) {
+      id = crypto.randomUUID();
+      localStorage.setItem(CLIENT_USER_ID_KEY, id);
+    }
+    return id;
+  } catch (_) {
+    return "fallback-" + String(Date.now());
+  }
+}
+
+const clientUserId = getOrCreateClientUserId();
+
+function apiFetch(url, options = {}) {
+  const headers = new Headers(options.headers || {});
+  headers.set("X-Client-User-Id", clientUserId);
+  const isForm = typeof FormData !== "undefined" && options.body instanceof FormData;
+  if (!isForm && options.body && typeof options.body === "string" && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  return fetch(url, { ...options, headers });
+}
+
 let currentSessionId = null;
 let sessions = [];
 
@@ -20,8 +48,15 @@ const btnClose = document.getElementById("btnClose");
 const btnSave = document.getElementById("btnSave");
 const configName = document.getElementById("configName");
 const configPersonality = document.getElementById("configPersonality");
+const chkUseRag = document.getElementById("chkUseRag");
+const ragFiles = document.getElementById("ragFiles");
+const btnIngest = document.getElementById("btnIngest");
+const ragRuntime = document.getElementById("ragRuntime");
+const ragStatusLine = document.getElementById("ragStatusLine");
 const sidebar = document.querySelector(".sidebar");
 const sidebarToggle = document.getElementById("sidebarToggle");
+
+const USE_RAG_KEY = "pumpkin-use-rag";
 
 // 侧边栏收缩状态（持久化）
 const SIDEBAR_KEY = "pumpkin-sidebar-collapsed";
@@ -42,7 +77,7 @@ function toggleSidebar() {
 // 加载会话列表
 async function loadSessions() {
   try {
-    const res = await fetch(`${API}/sessions`);
+    const res = await apiFetch(`${API}/sessions`);
     const data = await res.json();
     sessions = data.sessions || [];
     renderSessionList();
@@ -113,7 +148,7 @@ function renderSessionList() {
 // 删除会话
 async function deleteSession(sid) {
   try {
-    await fetch(`${API}/sessions/${sid}`, { method: "DELETE" });
+    await apiFetch(`${API}/sessions/${sid}`, { method: "DELETE" });
     sessions = sessions.filter((s) => s.id !== sid);
     if (currentSessionId === sid) {
       currentSessionId = null;
@@ -145,7 +180,7 @@ async function createSession() {
     return;
   }
   try {
-    const res = await fetch(`${API}/sessions`, { method: "POST" });
+    const res = await apiFetch(`${API}/sessions`, { method: "POST" });
     const data = await res.json();
     sessions.unshift(data);
     currentSessionId = data.id;
@@ -252,12 +287,17 @@ async function sendMessage() {
 
   const bubble = assistantEl.querySelector(".bubble");
   let fullText = "";
+  const sentWithRag = chkUseRag.checked;
 
   try {
-    const res = await fetch(`${API}/chat`, {
+    const res = await apiFetch(`${API}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: currentSessionId, content }),
+      body: JSON.stringify({
+        session_id: currentSessionId,
+        content,
+        use_rag: sentWithRag,
+      }),
     });
 
     if (!res.ok) {
@@ -299,7 +339,21 @@ async function sendMessage() {
             copyBtn.className = "btn-copy";
             copyBtn.textContent = "复制";
             copyBtn.setAttribute("data-msg-id", String(id));
-            assistantEl.querySelector(".msg-body").appendChild(copyBtn);
+            const msgBody = assistantEl.querySelector(".msg-body");
+            msgBody.appendChild(copyBtn);
+            if (sentWithRag && msg.rag) {
+              const foot = document.createElement("div");
+              foot.className = "rag-footnote";
+              if (msg.rag.error) {
+                foot.classList.add("rag-footnote-error");
+                foot.textContent = "知识库未生效：" + msg.rag.error;
+              } else if (msg.rag.hits > 0) {
+                foot.textContent = "已结合知识库 · " + msg.rag.hits + " 条片段";
+              } else {
+                foot.textContent = "知识库已开启，本次未匹配到相关片段（可换关键词或检查索引）";
+              }
+              msgBody.appendChild(foot);
+            }
             if (msg.title) {
               const s = sessions.find(x => x.id === currentSessionId);
               if (s) s.title = msg.title;
@@ -320,18 +374,42 @@ async function sendMessage() {
 // 配置
 async function loadConfig() {
   try {
-    const res = await fetch(`${API}/config`);
+    const res = await apiFetch(`${API}/config`);
     const data = await res.json();
     configName.value = data.name || "";
     configPersonality.value = data.personality || "";
+    const rt = data.rag_runtime || {};
+    const kb =
+      rt.backend === "cloud" ? "云端" : rt.backend === "local" ? "本地" : "—";
+    const ss =
+      data.sessions_storage === "cloud" ? "云端（按设备同步）" : "本地文件";
+    ragRuntime.textContent = (rt.error
+      ? `知识库存储：${kb}（${rt.error}）`
+      : `知识库存储：${kb}`) + ` · 会话：${ss}`;
+    await refreshRagStatus();
   } catch (e) {
     console.error("加载配置失败", e);
   }
 }
 
+async function refreshRagStatus() {
+  try {
+    const res = await apiFetch(`${API}/rag/status`);
+    const s = await res.json();
+    if (s.error) {
+      ragStatusLine.textContent = `状态: ${s.chunk_count ?? 0} 条 · ${s.error}`;
+    } else {
+      const t = s.updated_at ? ` · 更新 ${s.updated_at}` : "";
+      ragStatusLine.textContent = `状态: ${s.chunk_count ?? 0} 条片段${t}`;
+    }
+  } catch (e) {
+    ragStatusLine.textContent = "状态: 无法获取";
+  }
+}
+
 async function saveConfig() {
   try {
-    await fetch(`${API}/config`, {
+    await apiFetch(`${API}/config`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -344,6 +422,49 @@ async function saveConfig() {
     console.error("保存配置失败", e);
   }
 }
+
+async function ingestRag() {
+  const files = ragFiles.files;
+  if (!files || files.length === 0) {
+    alert("请先选择 .txt 或 .md 文件");
+    return;
+  }
+  btnIngest.disabled = true;
+  ragStatusLine.textContent = "正在建库…";
+  try {
+    const fd = new FormData();
+    for (let i = 0; i < files.length; i++) fd.append("files", files[i]);
+    fd.append("replace", "true");
+    const res = await apiFetch(`${API}/rag/ingest`, { method: "POST", body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      ragStatusLine.textContent = data.error || res.statusText;
+      return;
+    }
+    ragStatusLine.textContent = `建库完成，共 ${data.chunks} 个片段（已自动勾选「知识库」）`;
+    ragFiles.value = "";
+    chkUseRag.checked = true;
+    localStorage.setItem(USE_RAG_KEY, "true");
+    await refreshRagStatus();
+  } catch (e) {
+    ragStatusLine.textContent = "建库失败: " + e.message;
+  } finally {
+    btnIngest.disabled = false;
+  }
+}
+
+function initUseRagToggle() {
+  const stored = localStorage.getItem(USE_RAG_KEY);
+  if (stored !== null) {
+    chkUseRag.checked = stored === "true";
+    return;
+  }
+  chkUseRag.checked = true;
+}
+
+chkUseRag.addEventListener("change", () => {
+  localStorage.setItem(USE_RAG_KEY, String(chkUseRag.checked));
+});
 
 function escapeHtml(s) {
   const div = document.createElement("div");
@@ -371,6 +492,7 @@ btnConfig.addEventListener("click", () => {
   loadConfig();
   modalOverlay.classList.add("visible");
 });
+btnIngest.addEventListener("click", ingestRag);
 btnClose.addEventListener("click", () => modalOverlay.classList.remove("visible"));
 btnSave.addEventListener("click", saveConfig);
 modalOverlay.addEventListener("click", (e) => {
@@ -402,4 +524,5 @@ messages.addEventListener("click", (e) => {
 });
 
 // 初始化
+initUseRagToggle();
 loadSessions();
