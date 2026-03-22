@@ -1,3 +1,6 @@
+"""
+分析股票信息助手
+"""
 import os
 from openai import OpenAI
 import json
@@ -38,7 +41,7 @@ def text_analyse(user_prompt):
     messages = [
         {
             "role": "system",
-            "content": f"你是一个股票文本分析助手，请抽取文字中的关键内容：{schemas},注意返回标准json格式。",
+            "content": f"你是一个股票文本分析助手，请抽取文字中的关键内容：{schemas},注意返回标准json格式。如果没有抽取到目标信息，可以用'-'表示，例如：【'成交量': '-'】",
         },
     ]
     for ex in examples:
