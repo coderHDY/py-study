@@ -1,10 +1,15 @@
 import json
 from pathlib import Path
 
-import faiss
 import numpy as np
 
 META_EXT = ".meta.json"
+
+
+def _faiss():
+    import faiss
+
+    return faiss
 
 
 def _paths(prefix: Path) -> tuple[Path, Path]:
@@ -21,6 +26,7 @@ def _paths(prefix: Path) -> tuple[Path, Path]:
 
 
 def save_index(base_path: Path, vectors: np.ndarray, chunks: list[str]) -> None:
+    faiss = _faiss()
     if vectors.size == 0:
         raise ValueError("无向量可写入")
     faiss_path, meta_path = _paths(base_path)
@@ -36,7 +42,8 @@ def save_index(base_path: Path, vectors: np.ndarray, chunks: list[str]) -> None:
         json.dump(meta, f, ensure_ascii=False, indent=2)
 
 
-def load_index(base_path: Path) -> tuple[faiss.Index, list[str]] | tuple[None, None]:
+def load_index(base_path: Path):
+    faiss = _faiss()
     faiss_path, meta_path = _paths(base_path)
     if not faiss_path.exists() or not meta_path.exists():
         return None, None
@@ -48,6 +55,7 @@ def load_index(base_path: Path) -> tuple[faiss.Index, list[str]] | tuple[None, N
 
 
 def search(base_path: Path, query_vec: np.ndarray, top_k: int) -> list[str]:
+    faiss = _faiss()
     index, chunks = load_index(base_path)
     if index is None or not chunks:
         return []

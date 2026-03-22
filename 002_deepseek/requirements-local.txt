@@ -1,0 +1,4 @@
+# 本地开发：本地 FAISS + 本地嵌入模型（体积大，勿用于 Vercel）
+-r requirements.txt
+faiss-cpu>=1.7.4
+sentence-transformers>=2.2.0

@@ -99,10 +99,15 @@ def rag_sources_dir() -> Path:
 
 def _rag_dependency_error_message(exc: BaseException) -> str:
     if isinstance(exc, ModuleNotFoundError) and getattr(exc, "name", None):
+        name = exc.name
+        if name in ("faiss", "sentence_transformers", "torch"):
+            return (
+                f"缺少 Python 依赖「{name}」。本地 FAISS/嵌入模型请执行：pip install -r requirements-local.txt。"
+                "若在 Vercel 部署，请使用云端知识库并设置 EMBEDDING_BACKEND=openai（勿安装 torch 系大包）。"
+            )
         return (
-            f"缺少 Python 依赖「{exc.name}」。本地 RAG 需要安装 requirements.txt。"
-            "请在项目目录执行：pip install -r requirements.txt，"
-            "或使用虚拟环境启动：.venv/bin/python app.py（需先 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt）"
+            f"缺少 Python 依赖「{name}」。请执行：pip install -r requirements.txt，"
+            "或使用：.venv/bin/pip install -r requirements.txt"
         )
     return str(exc)
 

@@ -1,0 +1,9 @@
+# 不上传到 Vercel，减小打包体积
+.venv
+venv
+__pycache__
+*.py[cod]
+.git
+.env
+.env.*
+data

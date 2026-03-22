@@ -1,9 +1,9 @@
+# 服务端 / Vercel：勿包含 torch 系依赖（sentence-transformers 会膨胀到数 GB，超过 Lambda 500MB）
+# 云端 RAG 请设 EMBEDDING_BACKEND=openai，向量维度 EMBEDDING_DIM 须与数据库 vector 列一致（如 384）
 openai>=1.0.0
 python-dotenv>=1.0.0
 flask>=3.0.0
 flask-cors>=4.0.0
 socksio>=1.0.0
 numpy>=1.24.0
-faiss-cpu>=1.7.4
-sentence-transformers>=2.2.0
 supabase>=2.0.0

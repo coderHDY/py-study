@@ -2,7 +2,6 @@ from pathlib import Path
 
 from .chunking import chunk_text
 from .embeddings import embed_texts
-from .store_local import save_index
 
 
 def texts_to_chunks(texts: list[str], chunk_size: int, chunk_overlap: int) -> list[str]:
@@ -13,6 +12,8 @@ def texts_to_chunks(texts: list[str], chunk_size: int, chunk_overlap: int) -> li
 
 
 def ingest_to_local(prefix_path: Path, texts: list[str], chunk_size: int, chunk_overlap: int) -> int:
+    from .store_local import save_index
+
     chunks = texts_to_chunks(texts, chunk_size, chunk_overlap)
     if not chunks:
         return 0

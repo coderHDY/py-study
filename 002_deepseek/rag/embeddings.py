@@ -45,9 +45,13 @@ def embed_texts(texts: list[str]) -> np.ndarray:
         model = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
         vecs = []
         batch = 32
+        dim = embedding_dim()
         for i in range(0, len(texts), batch):
             part = texts[i : i + batch]
-            r = client.embeddings.create(model=model, input=part)
+            kwargs: dict = {"model": model, "input": part}
+            if str(model).startswith("text-embedding-3") and dim > 0:
+                kwargs["dimensions"] = dim
+            r = client.embeddings.create(**kwargs)
             order = {item.index: np.array(item.embedding, dtype=np.float32) for item in r.data}
             vecs.extend(order[j] for j in range(len(part)))
         return np.stack(vecs, axis=0)
