@@ -4,11 +4,15 @@
 - openai：OpenAI 兼容 HTTP（含百炼 compatible-mode / OpenAI 官方）
 - dashscope_multimodal：百炼原生 SDK（MultiModalEmbedding），用于 tongyi-embedding-vision-* 等
 
+百炼 compatible-mode（text-embedding-v3/v4）的 dimension 仅允许：
+  64, 128, 256, 512, 768, 1024, 1536, 2048, 3072（不可用 384）。
+  未配置时 Vercel 默认会按 384 意图对齐为 512；库表须为 vector(512) 或你显式设置 EMBEDDING_DIM 为上述之一。
+
 百炼兼容模式示例：
   DASHSCOPE_API_KEY=...
   EMBEDDING_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
   EMBEDDING_MODEL=text-embedding-v4
-  EMBEDDING_DIM=384
+  EMBEDDING_DIM=512
 
 通义多模态嵌入（文档示例）：
   EMBEDDING_BACKEND=dashscope_multimodal
@@ -28,6 +32,22 @@ EmbeddingBackend = Literal["local", "openai", "dashscope_mm"]
 
 _DASHSCOPE_CN = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 _DASHSCOPE_INTL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+
+# 百炼 OpenAI 兼容嵌入 v3/v4：parameters.dimension 仅允许下列取值（官方报错枚举）
+_DASHSCOPE_COMPATIBLE_VALID_DIMS = (64, 128, 256, 512, 768, 1024, 1536, 2048, 3072)
+
+
+def _using_dashscope_compatible_embedding_api() -> bool:
+    return "dashscope" in _resolve_embedding_api_base().lower()
+
+
+def _snap_dashscope_compatible_dimension(d: int) -> int:
+    if d in _DASHSCOPE_COMPATIBLE_VALID_DIMS:
+        return d
+    ge = [x for x in _DASHSCOPE_COMPATIBLE_VALID_DIMS if x >= d]
+    if ge:
+        return min(ge)
+    return max(_DASHSCOPE_COMPATIBLE_VALID_DIMS)
 
 
 def _dashscope_compatible_base() -> str:
@@ -72,11 +92,14 @@ def embedding_dim() -> int:
     if backend == "openai":
         raw = os.environ.get("EMBEDDING_DIM")
         if raw is not None and str(raw).strip() != "":
-            return int(str(raw).strip())
-        # 与 supabase_multiuser.sql 中 vector(384) 对齐；本地显式 openai 未设时仍用 1536
-        if os.environ.get("VERCEL"):
-            return 384
-        return 1536
+            d = int(str(raw).strip())
+        elif os.environ.get("VERCEL"):
+            d = 384
+        else:
+            d = 1536
+        if _using_dashscope_compatible_embedding_api():
+            return _snap_dashscope_compatible_dimension(d)
+        return d
     return 384
 
 
