@@ -8,6 +8,7 @@
   EMBEDDING_DIM=384   # 与库表 vector(384) 一致；v3/v4 支持 dimensions 参数
 
 国际域可将 BASE_URL 换为 https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+可选 DASHSCOPE_REGION=intl（或 sg）使用国际域；勿把百炼 Key 只写在 OPENAI_API_KEY 却不设 BASE_URL，否则会误请求 OpenAI 官方而 401。
 """
 import os
 from functools import lru_cache
@@ -16,6 +17,33 @@ from typing import Literal
 import numpy as np
 
 EmbeddingBackend = Literal["local", "openai"]
+
+_DASHSCOPE_CN = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+_DASHSCOPE_INTL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+
+
+def _dashscope_compatible_base() -> str:
+    r = os.environ.get("DASHSCOPE_REGION", "cn").strip().lower()
+    if r in ("intl", "international", "sg", "singapore", "sea"):
+        return _DASHSCOPE_INTL
+    return _DASHSCOPE_CN
+
+
+def _resolve_embedding_api_base() -> str:
+    explicit = os.environ.get("EMBEDDING_BASE_URL", "").strip()
+    if explicit:
+        return explicit
+    prov = os.environ.get("EMBEDDING_PROVIDER", "").strip().lower()
+    if prov in ("dashscope", "bailian", "aliyun"):
+        return _dashscope_compatible_base()
+    model = os.environ.get("EMBEDDING_MODEL", "").strip().lower()
+    if model.startswith("text-embedding-v"):
+        return _dashscope_compatible_base()
+    emb = os.environ.get("EMBEDDING_API_KEY", "").strip()
+    ds = os.environ.get("DASHSCOPE_API_KEY", "").strip()
+    if ds and not emb:
+        return _dashscope_compatible_base()
+    return "https://api.openai.com/v1"
 
 
 def embedding_dim() -> int:
@@ -52,12 +80,16 @@ def _local_model():
 def _openai_client():
     from openai import OpenAI
 
-    key = (
-        os.environ.get("EMBEDDING_API_KEY")
-        or os.environ.get("DASHSCOPE_API_KEY")
-        or os.environ.get("OPENAI_API_KEY")
-    )
-    base = os.environ.get("EMBEDDING_BASE_URL", "https://api.openai.com/v1")
+    emb = os.environ.get("EMBEDDING_API_KEY", "").strip()
+    ds = os.environ.get("DASHSCOPE_API_KEY", "").strip()
+    oa = os.environ.get("OPENAI_API_KEY", "").strip()
+    if emb:
+        key = emb
+    elif ds:
+        key = ds
+    else:
+        key = oa
+    base = _resolve_embedding_api_base()
     return OpenAI(api_key=key, base_url=base)
 
 
