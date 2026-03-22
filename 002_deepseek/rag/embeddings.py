@@ -1,3 +1,14 @@
+"""
+嵌入：本地 sentence-transformers，或任意 OpenAI 兼容 Embeddings API（含阿里云百炼 compatible-mode）。
+
+百炼示例（北京地域）：
+  EMBEDDING_API_KEY 或 DASHSCOPE_API_KEY=<DashScope API Key>
+  EMBEDDING_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+  EMBEDDING_MODEL=text-embedding-v4
+  EMBEDDING_DIM=384   # 与库表 vector(384) 一致；v3/v4 支持 dimensions 参数
+
+国际域可将 BASE_URL 换为 https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+"""
 import os
 from functools import lru_cache
 from typing import Literal
@@ -10,13 +21,24 @@ EmbeddingBackend = Literal["local", "openai"]
 def embedding_dim() -> int:
     backend = _backend_name()
     if backend == "openai":
-        return int(os.environ.get("EMBEDDING_DIM", "1536"))
+        raw = os.environ.get("EMBEDDING_DIM")
+        if raw is not None and str(raw).strip() != "":
+            return int(str(raw).strip())
+        # 与 supabase_multiuser.sql 中 vector(384) 对齐；本地显式 openai 未设时仍用 1536
+        if os.environ.get("VERCEL"):
+            return 384
+        return 1536
     return 384
 
 
 def _backend_name() -> str:
-    b = (os.environ.get("EMBEDDING_BACKEND") or "local").strip().lower()
-    return "openai" if b == "openai" else "local"
+    raw = os.environ.get("EMBEDDING_BACKEND")
+    if raw is not None and str(raw).strip() != "":
+        return "openai" if str(raw).strip().lower() == "openai" else "local"
+    # 云端镜像不含 sentence-transformers / torch，未配置时默认走 API 嵌入
+    if os.environ.get("VERCEL"):
+        return "openai"
+    return "local"
 
 
 @lru_cache(maxsize=1)
@@ -30,9 +52,23 @@ def _local_model():
 def _openai_client():
     from openai import OpenAI
 
-    key = os.environ.get("EMBEDDING_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    key = (
+        os.environ.get("EMBEDDING_API_KEY")
+        or os.environ.get("DASHSCOPE_API_KEY")
+        or os.environ.get("OPENAI_API_KEY")
+    )
     base = os.environ.get("EMBEDDING_BASE_URL", "https://api.openai.com/v1")
     return OpenAI(api_key=key, base_url=base)
+
+
+def _embeddings_api_supports_dimensions(model: str) -> bool:
+    """OpenAI text-embedding-3* 与百炼 text-embedding-v3/v4 等支持 dimensions。"""
+    m = str(model).lower()
+    if m.startswith("text-embedding-3"):
+        return True
+    if m.startswith("text-embedding-v3") or m.startswith("text-embedding-v4"):
+        return True
+    return False
 
 
 def embed_texts(texts: list[str]) -> np.ndarray:
@@ -49,7 +85,7 @@ def embed_texts(texts: list[str]) -> np.ndarray:
         for i in range(0, len(texts), batch):
             part = texts[i : i + batch]
             kwargs: dict = {"model": model, "input": part}
-            if str(model).startswith("text-embedding-3") and dim > 0:
+            if _embeddings_api_supports_dimensions(model) and dim > 0:
                 kwargs["dimensions"] = dim
             r = client.embeddings.create(**kwargs)
             order = {item.index: np.array(item.embedding, dtype=np.float32) for item in r.data}
