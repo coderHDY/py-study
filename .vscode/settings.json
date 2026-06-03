@@ -1,9 +1,14 @@
 {
   "code-runner.executorMap": {
-    "python": "/usr/local/bin/python3 -u"
+    "python": "$workspaceRoot/004_langchain/.venv/bin/python -u $fullFileName"
   },
   "code-runner.executorMapByFileExtension": {
-    ".py": "/usr/local/bin/python3 -u"
+    ".py": "$workspaceRoot/004_langchain/.venv/bin/python -u $fullFileName"
   },
-  "python.defaultInterpreterPath": "/usr/local/bin/python3"
+  "python.defaultInterpreterPath": "${workspaceFolder}/004_langchain/.venv/bin/python",
+  "python.terminal.activateEnvironment": true,
+  "python.analysis.diagnosticMode": "workspace",
+  "basedpyright.analysis.diagnosticMode": "workspace",
+  "basedpyright.venvPath": "${workspaceFolder}/004_langchain",
+  "basedpyright.venv": ".venv"
 }

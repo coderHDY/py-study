@@ -1,0 +1,7 @@
+{
+  "venvPath": "004_langchain",
+  "venv": ".venv",
+  "pythonVersion": "3.11",
+  "include": ["004_langchain"],
+  "exclude": ["**/.venv", "**/__pycache__"]
+}

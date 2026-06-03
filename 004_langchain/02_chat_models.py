@@ -59,8 +59,7 @@ def ticket_messages(ticket_text: str):
         SystemMessage(content=SERVICE_PROMPT),
         HumanMessage(
             content=(
-                "请先总结用户问题，再给出处理建议。\n"
-                f"工单内容如下：\n{ticket_text}"
+                "请先总结用户问题，再给出处理建议。\n" f"工单内容如下：\n{ticket_text}"
             )
         ),
     ]
@@ -146,9 +145,15 @@ def demo_structured_output() -> None:
         "type": "object",
         "properties": {
             "category": {"type": "string", "description": "工单类别"},
-            "priority": {"type": "string", "description": "优先级，low/medium/high/urgent"},
+            "priority": {
+                "type": "string",
+                "description": "优先级，low/medium/high/urgent",
+            },
             "sentiment": {"type": "string", "description": "用户情绪"},
-            "need_human_followup": {"type": "boolean", "description": "是否需要人工继续跟进"},
+            "need_human_followup": {
+                "type": "boolean",
+                "description": "是否需要人工继续跟进",
+            },
             "reply_points": {
                 "type": "array",
                 "items": {"type": "string"},
@@ -219,7 +224,9 @@ def demo_bind_tools() -> None:
     # vs with_structured_output：bind_tools 让模型"选择性调用外部函数"；
     #   with_structured_output 是强制把输出格式化为某个 schema，不涉及真实函数调用。
     print_title("6. bind_tools")
-    model = build_model(temperature=0).bind_tools([query_refund_policy, create_escalation_ticket])
+    model = build_model(temperature=0).bind_tools(
+        [query_refund_policy, create_escalation_ticket]
+    )
     messages = [
         SystemMessage(content=SERVICE_PROMPT),
         HumanMessage(
@@ -270,7 +277,9 @@ def demo_retry_and_fallback() -> None:
     response = resilient_model.invoke(
         [
             SystemMessage(content=SERVICE_PROMPT),
-            HumanMessage(content="请用一句话解释：为什么客服系统适合使用 with_retry 和 with_fallbacks？"),
+            HumanMessage(
+                content="请用一句话解释：为什么客服系统适合使用 with_retry 和 with_fallbacks？"
+            ),
         ]
     )
     print(response.content)
@@ -332,15 +341,15 @@ async def demo_async() -> None:
 
 def main() -> None:
     print("客服工单助手示例启动：以下演示均基于 ChatTongyi(model='qwen-plus')")
-    demo_invoke()
-    demo_stream()
-    demo_multi_turn()
-    demo_structured_output()
-    demo_bind()
+    # demo_invoke()
+    # demo_stream()
+    # demo_multi_turn()
+    # demo_structured_output()
+    # demo_bind()
     demo_bind_tools()
-    demo_retry_and_fallback()
-    demo_batch()
-    asyncio.run(demo_async())
+    # demo_retry_and_fallback()
+    # demo_batch()
+    # asyncio.run(demo_async())
 
 
 if __name__ == "__main__":
